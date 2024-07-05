@@ -4,5 +4,5 @@ Show demonstration of android mobile app:
 
 1. Connected to which wireless network: Wifi, Mobile Data, No Internet
 2. Connected wireless connectivity name
-3. Signal Strength and other info.
+3. Signal Strength and other info like IP and MAC.
 4. When the state change of mobile app then print that relevant information.

@@ -8,10 +8,8 @@ import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.net.NetworkCapabilities;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.telephony.TelephonyManager;
 import android.widget.TextView;
@@ -19,6 +17,10 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -119,17 +121,28 @@ public class MainActivity extends AppCompatActivity {
                 networkDetailsTextView.setText("Network Details: " + wifiInfo.getSSID());
                 int signalStrength = WifiManager.calculateSignalLevel(wifiInfo.getRssi(), 5);
                 signalStrengthTextView.setText("Signal Strength: " + signalStrength + "/5");
-                otherInfoTextView.setText("Other Info: Link Speed - " + wifiInfo.getLinkSpeed() + "Mbps");
+                otherInfoTextView.setText("Other Info: Link Speed - " + wifiInfo.getLinkSpeed() + "Mbps\n"
+                        + "IP Address - " + intToIp(wifiInfo.getIpAddress()) + "\n"
+                        + "MAC Address - " + wifiInfo.getMacAddress());
             } else if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
                 networkStatusTextView.setText("Connected to: Mobile Network");
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-                    TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-                    networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
+                if (isMobileDataEnabled()) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+                        networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
+                    } else {
+                        networkDetailsTextView.setText("Network Details: Permission required");
+                    }
+                    signalStrengthTextView.setText("Signal Strength: Unknown");
+                    otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()) + "\n"
+                            + "IP Address - " + getMobileIpAddress() + "\n"
+                            + "MAC Address - " + getMobileMacAddress());
                 } else {
-                    networkDetailsTextView.setText("Network Details: Permission required");
+                    // Mobile data is off, but we are connected
+                    networkDetailsTextView.setText("Network Details: Mobile data off");
+                    signalStrengthTextView.setText("Signal Strength: N/A");
+                    otherInfoTextView.setText("Other Info: N/A");
                 }
-                signalStrengthTextView.setText("Signal Strength: Unknown");
-                otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()));
             }
         } else {
             networkStatusTextView.setText("Not connected to the internet");
@@ -153,15 +166,8 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isMobileDataEnabled() {
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-                System.out.println(capabilities);
-//                [ Transports: WIFI Capabilities: NOT_METERED&INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&VALIDATED&NOT_ROAMING&FOREGROUND&NOT_CONGESTED&NOT_SUSPENDED&NOT_VCN_MANAGED LinkUpBandwidth>=12000Kbps LinkDnBandwidth>=60000Kbps TransportInfo: <SSID: <unknown ssid>, BSSID: 02:00:00:00:00:00, MAC: 02:00:00:00:00:00, IP: /192.168.0.28, Security type: 2, Supplicant state: COMPLETED, Wi-Fi standard: 5, RSSI: -56, Link speed: 351Mbps, Tx Link speed: 351Mbps, Max Supported Tx Link speed: 866Mbps, Rx Link speed: 585Mbps, Max Supported Rx Link speed: 866Mbps, Frequency: 5805MHz, Net ID: -1, Metered hint: false, score: 60, isUsable: true, CarrierMerged: false, SubscriptionId: -1, IsPrimary: -1, Trusted: true, Restricted: false, Ephemeral: false, OEM paid: false, OEM private: false, OSU AP: false, FQDN: <none>, Provider friendly name: <none>, Requesting package name: <none><none>MLO Information: , Is TID-To-Link negotiation supported by the AP: false, AP MLD Address: <none>, AP MLO Link Id: <none>, AP MLO Affiliated links: <none>> SignalStrength: -56 UnderlyingNetworks: Null]
-                return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
-            } else {
-                NetworkInfo info = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
-                return info != null && info.isConnected();
-            }
+            NetworkInfo info = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
+            return info != null && info.isConnected();
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -184,5 +190,60 @@ public class MainActivity extends AppCompatActivity {
             default:
                 return "Unknown";
         }
+    }
+
+    private String intToIp(int ip) {
+        return (ip & 0xFF) + "." +
+                ((ip >> 8) & 0xFF) + "." +
+                ((ip >> 16) & 0xFF) + "." +
+                ((ip >> 24) & 0xFF);
+    }
+
+    private String getMobileIpAddress() {
+        try {
+            for (NetworkInterface intf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
+                    if (!addr.isLoopbackAddress()) {
+                        String sAddr = addr.getHostAddress();
+                        boolean isIPv4 = sAddr.indexOf(':') < 0;
+
+                        if (isIPv4) {
+                            return sAddr;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return "";
+    }
+
+    private String getMobileMacAddress() {
+        try {
+            List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
+            for (NetworkInterface nif : all) {
+                if (!nif.getName().equalsIgnoreCase("wlan0")) continue;
+
+                byte[] macBytes = nif.getHardwareAddress();
+                if (macBytes == null) {
+                    return "";
+                }
+
+                StringBuilder res1 = new StringBuilder();
+                for (byte b : macBytes) {
+                    res1.append(String.format("%02X:", b));
+                }
+
+                if (res1.length() > 0) {
+                    res1.deleteCharAt(res1.length() - 1);
+                }
+
+                return res1.toString();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return "";
     }
 }
