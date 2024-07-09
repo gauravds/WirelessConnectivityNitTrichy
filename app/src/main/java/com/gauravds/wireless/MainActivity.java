@@ -7,13 +7,10 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
-import android.telephony.TelephonyManager;
 import android.view.View;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
@@ -59,8 +56,7 @@ public class MainActivity extends AppCompatActivity {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 Manifest.permission.ACCESS_NETWORK_STATE,
                 Manifest.permission.ACCESS_WIFI_STATE,
-                Manifest.permission.INTERNET,
-                Manifest.permission.READ_PHONE_STATE
+                Manifest.permission.INTERNET
         };
 
         boolean allPermissionsGranted = true;
@@ -126,26 +122,6 @@ public class MainActivity extends AppCompatActivity {
                         + "IP Address - " + intToIp(wifiInfo.getIpAddress()) + "\n"
                         + "MAC Address - " + wifiInfo.getMacAddress());
                 showBanner("Connected to Wi-Fi", android.R.color.holo_green_dark);
-            } else if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
-                networkStatusTextView.setText("Connected to: Mobile Network");
-                if (isMobileDataEnabled()) {
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-                        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-                        networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
-                    } else {
-                        networkDetailsTextView.setText("Network Details: Permission required");
-                    }
-                    signalStrengthTextView.setText("Signal Strength: Unknown");
-                    otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()) + "\n"
-                            + "IP Address - " + getMobileIpAddress() + "\n"
-                            + "MAC Address - " + getMobileMacAddress());
-                    showBanner("Connected to Mobile Network", android.R.color.holo_green_dark);
-                } else {
-                    networkDetailsTextView.setText("Network Details: Mobile data off");
-                    signalStrengthTextView.setText("Signal Strength: N/A");
-                    otherInfoTextView.setText("Other Info: N/A");
-                    showBanner("Mobile data is off", android.R.color.holo_red_dark);
-                }
             }
         } else {
             networkStatusTextView.setText("Not connected to the internet");
@@ -160,45 +136,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             otherInfoTextView.append("\nWi-Fi is OFF");
         }
-
-        if (isMobileDataEnabled()) {
-            otherInfoTextView.append("\nMobile Data is ON");
-        } else {
-            otherInfoTextView.append("\nMobile Data is OFF");
-        }
-    }
-
-    private boolean isMobileDataEnabled() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-                return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
-            } else {
-                NetworkInfo info = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
-                return info != null && info.isConnected();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    private String getNetworkTypeString(int networkType) {
-        switch (networkType) {
-            case TelephonyManager.NETWORK_TYPE_LTE:
-                return "LTE";
-            case TelephonyManager.NETWORK_TYPE_NR:
-                return "5G";
-            case TelephonyManager.NETWORK_TYPE_HSPAP:
-            case TelephonyManager.NETWORK_TYPE_HSPA:
-                return "HSPA";
-            case TelephonyManager.NETWORK_TYPE_EDGE:
-                return "EDGE";
-            case TelephonyManager.NETWORK_TYPE_GPRS:
-                return "GPRS";
-            default:
-                return "Unknown";
-        }
     }
 
     private void showBanner(String message, int colorResId) {
@@ -212,15 +149,5 @@ public class MainActivity extends AppCompatActivity {
                 ((ipAddress >> 16) & 0xFF) + "." +
                 ((ipAddress >> 8) & 0xFF) + "." +
                 (ipAddress & 0xFF);
-    }
-
-    private String getMobileIpAddress() {
-        // You need a method to get the mobile IP address
-        return "N/A";
-    }
-
-    private String getMobileMacAddress() {
-        // You need a method to get the mobile MAC address
-        return "N/A";
     }
 }
