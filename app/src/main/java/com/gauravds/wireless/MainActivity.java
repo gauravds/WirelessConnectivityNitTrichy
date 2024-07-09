@@ -15,14 +15,20 @@ import android.os.Build;
 import android.os.Bundle;
 import android.telephony.PhoneStateListener;
 import android.telephony.SignalStrength;
+import android.telephony.SubscriptionInfo;
+import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.view.View;
 import android.widget.TextView;
-
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
+import java.util.List;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,6 +40,7 @@ public class MainActivity extends AppCompatActivity {
     private View bannerView;
     private TelephonyManager telephonyManager;
     private PhoneStateListener phoneStateListener;
+    private SubscriptionManager subscriptionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,8 +55,8 @@ public class MainActivity extends AppCompatActivity {
 
         connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-
         telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        subscriptionManager = SubscriptionManager.from(this);
 
         checkPermissions();
     }
@@ -152,10 +159,15 @@ public class MainActivity extends AppCompatActivity {
             } else if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
                 networkStatusTextView.setText("Connected to: Mobile Network");
                 if (isMobileDataEnabled()) {
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-                        networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
+                    List<SubscriptionInfo> subscriptionInfoList = subscriptionManager.getActiveSubscriptionInfoList();
+                    if (subscriptionInfoList != null && subscriptionInfoList.size() > 0) {
+                        StringBuilder networkDetails = new StringBuilder();
+                        for (SubscriptionInfo info : subscriptionInfoList) {
+                            networkDetails.append("SIM ").append(info.getSimSlotIndex() + 1).append(": ").append(info.getCarrierName()).append("\n");
+                        }
+                        networkDetailsTextView.setText("Network Details:\n" + networkDetails.toString());
                     } else {
-                        networkDetailsTextView.setText("Network Details: Permission required");
+                        networkDetailsTextView.setText("Network Details: Unknown");
                     }
                     signalStrengthTextView.setText("Signal Strength: " + getMobileSignalStrength());
                     otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()) + "\n"
@@ -271,12 +283,50 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private String getMobileIpAddress() {
-        // You need a method to get the mobile IP address
-        return "N/A";
+        try {
+            for (NetworkInterface intf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
+                    if (!addr.isLoopbackAddress()) {
+                        String sAddr = addr.getHostAddress();
+                        boolean isIPv4 = sAddr.indexOf(':') < 0;
+
+                        if (isIPv4) {
+                            return sAddr;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return "Not found";
     }
 
     private String getMobileMacAddress() {
-        // You need a method to get the mobile MAC address
-        return "N/A";
+        try {
+            List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
+            for (NetworkInterface nif : all) {
+                if (!nif.getName().equalsIgnoreCase("wlan0")) continue;
+
+                byte[] macBytes = nif.getHardwareAddress();
+                if (macBytes == null) {
+                    return "";
+                }
+
+                StringBuilder res1 = new StringBuilder();
+                for (byte b : macBytes) {
+                    res1.append(String.format("%02X:", b));
+                }
+
+                if (res1.length() > 0) {
+                    res1.deleteCharAt(res1.length() - 1);
+                }
+
+                return res1.toString();
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return "Not found";
     }
 }
