@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:padding="16dp"
     tools:context=".MainActivity">
+
+    <View
+        android:id="@+id/bannerView"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:layout_alignParentTop="true"
+        android:background="#FF0000"
+        android:visibility="gone"/>
 
     <TextView
         android:id="@+id/titleTextView"
@@ -14,6 +21,7 @@
         android:text="Wireless Connectivity Demo"
         android:textSize="24sp"
         android:textStyle="bold"
+        android:layout_below="@id/bannerView"
         android:layout_centerHorizontal="true"
         android:layout_marginBottom="16dp"/>
 
@@ -21,31 +29,36 @@
         android:id="@+id/networkStatusTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Network Status: "
+        android:text="Network Status"
         android:textSize="18sp"
-        android:padding="8dp"/>
+        android:layout_below="@id/titleTextView"
+        android:layout_marginTop="24dp"/>
 
     <TextView
         android:id="@+id/networkDetailsTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Network Details: "
+        android:text="Network Details"
         android:textSize="18sp"
-        android:padding="8dp"/>
+        android:layout_below="@id/networkStatusTextView"
+        android:layout_marginTop="8dp"/>
 
     <TextView
         android:id="@+id/signalStrengthTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Signal Strength: "
+        android:text="Signal Strength"
         android:textSize="18sp"
-        android:padding="8dp"/>
+        android:layout_below="@id/networkDetailsTextView"
+        android:layout_marginTop="8dp"/>
 
     <TextView
         android:id="@+id/otherInfoTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Other Info: "
+        android:text="Other Info"
         android:textSize="18sp"
-        android:padding="8dp"/>
-</LinearLayout>
+        android:layout_below="@id/signalStrengthTextView"
+        android:layout_marginTop="8dp"/>
+
+</RelativeLayout>

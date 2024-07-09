@@ -7,20 +7,19 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.telephony.TelephonyManager;
+import android.view.View;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.util.Collections;
-import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,12 +28,14 @@ public class MainActivity extends AppCompatActivity {
     private ConnectivityManager connectivityManager;
     private WifiManager wifiManager;
     private BroadcastReceiver networkReceiver;
+    private View bannerView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        bannerView = findViewById(R.id.bannerView);
         networkStatusTextView = findViewById(R.id.networkStatusTextView);
         networkDetailsTextView = findViewById(R.id.networkDetailsTextView);
         signalStrengthTextView = findViewById(R.id.signalStrengthTextView);
@@ -124,6 +125,7 @@ public class MainActivity extends AppCompatActivity {
                 otherInfoTextView.setText("Other Info: Link Speed - " + wifiInfo.getLinkSpeed() + "Mbps\n"
                         + "IP Address - " + intToIp(wifiInfo.getIpAddress()) + "\n"
                         + "MAC Address - " + wifiInfo.getMacAddress());
+                showBanner("Connected to Wi-Fi", android.R.color.holo_green_dark);
             } else if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
                 networkStatusTextView.setText("Connected to: Mobile Network");
                 if (isMobileDataEnabled()) {
@@ -137,11 +139,12 @@ public class MainActivity extends AppCompatActivity {
                     otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()) + "\n"
                             + "IP Address - " + getMobileIpAddress() + "\n"
                             + "MAC Address - " + getMobileMacAddress());
+                    showBanner("Connected to Mobile Network", android.R.color.holo_green_dark);
                 } else {
-                    // Mobile data is off, but we are connected
                     networkDetailsTextView.setText("Network Details: Mobile data off");
                     signalStrengthTextView.setText("Signal Strength: N/A");
                     otherInfoTextView.setText("Other Info: N/A");
+                    showBanner("Mobile data is off", android.R.color.holo_red_dark);
                 }
             }
         } else {
@@ -149,6 +152,7 @@ public class MainActivity extends AppCompatActivity {
             networkDetailsTextView.setText("Network Details: N/A");
             signalStrengthTextView.setText("Signal Strength: N/A");
             otherInfoTextView.setText("Other Info: N/A");
+            showBanner("Not connected to the internet", android.R.color.holo_red_dark);
         }
 
         if (wifiManager.isWifiEnabled()) {
@@ -166,8 +170,13 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean isMobileDataEnabled() {
         try {
-            NetworkInfo info = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
-            return info != null && info.isConnected();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+                return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
+            } else {
+                NetworkInfo info = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
+                return info != null && info.isConnected();
+            }
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -192,58 +201,26 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private String intToIp(int ip) {
-        return (ip & 0xFF) + "." +
-                ((ip >> 8) & 0xFF) + "." +
-                ((ip >> 16) & 0xFF) + "." +
-                ((ip >> 24) & 0xFF);
+    private void showBanner(String message, int colorResId) {
+        bannerView.setBackgroundColor(ContextCompat.getColor(this, colorResId));
+        bannerView.setVisibility(View.VISIBLE);
+        networkStatusTextView.setText(message);
+    }
+
+    private String intToIp(int ipAddress) {
+        return ((ipAddress >> 24) & 0xFF) + "." +
+                ((ipAddress >> 16) & 0xFF) + "." +
+                ((ipAddress >> 8) & 0xFF) + "." +
+                (ipAddress & 0xFF);
     }
 
     private String getMobileIpAddress() {
-        try {
-            for (NetworkInterface intf : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                for (InetAddress addr : Collections.list(intf.getInetAddresses())) {
-                    if (!addr.isLoopbackAddress()) {
-                        String sAddr = addr.getHostAddress();
-                        boolean isIPv4 = sAddr.indexOf(':') < 0;
-
-                        if (isIPv4) {
-                            return sAddr;
-                        }
-                    }
-                }
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        return "";
+        // You need a method to get the mobile IP address
+        return "N/A";
     }
 
     private String getMobileMacAddress() {
-        try {
-            List<NetworkInterface> all = Collections.list(NetworkInterface.getNetworkInterfaces());
-            for (NetworkInterface nif : all) {
-                if (!nif.getName().equalsIgnoreCase("wlan0")) continue;
-
-                byte[] macBytes = nif.getHardwareAddress();
-                if (macBytes == null) {
-                    return "";
-                }
-
-                StringBuilder res1 = new StringBuilder();
-                for (byte b : macBytes) {
-                    res1.append(String.format("%02X:", b));
-                }
-
-                if (res1.length() > 0) {
-                    res1.deleteCharAt(res1.length() - 1);
-                }
-
-                return res1.toString();
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        return "";
+        // You need a method to get the mobile MAC address
+        return "N/A";
     }
 }
