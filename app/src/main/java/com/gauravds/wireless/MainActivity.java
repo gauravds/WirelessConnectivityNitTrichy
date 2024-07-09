@@ -7,11 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
-import android.net.wifi.WifiInfo;
-import android.net.wifi.WifiManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.telephony.TelephonyManager;
 import android.view.View;
@@ -26,7 +22,6 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSIONS_REQUEST_CODE = 100;
     private TextView networkStatusTextView, networkDetailsTextView, signalStrengthTextView, otherInfoTextView;
     private ConnectivityManager connectivityManager;
-    private WifiManager wifiManager;
     private BroadcastReceiver networkReceiver;
     private View bannerView;
 
@@ -42,7 +37,6 @@ public class MainActivity extends AppCompatActivity {
         otherInfoTextView = findViewById(R.id.otherInfoTextView);
 
         connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
         checkPermissions();
     }
@@ -58,8 +52,6 @@ public class MainActivity extends AppCompatActivity {
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
                 Manifest.permission.ACCESS_NETWORK_STATE,
-                Manifest.permission.ACCESS_WIFI_STATE,
-                Manifest.permission.INTERNET,
                 Manifest.permission.READ_PHONE_STATE
         };
 
@@ -107,8 +99,6 @@ public class MainActivity extends AppCompatActivity {
         };
         IntentFilter filter = new IntentFilter();
         filter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        filter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
-        filter.addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION);
         registerReceiver(networkReceiver, filter);
         updateNetworkInfo();
     }
@@ -116,36 +106,17 @@ public class MainActivity extends AppCompatActivity {
     private void updateNetworkInfo() {
         NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
         if (activeNetwork != null && activeNetwork.isConnected()) {
-            if (activeNetwork.getType() == ConnectivityManager.TYPE_WIFI) {
-                networkStatusTextView.setText("Connected to: Wi-Fi");
-                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-                networkDetailsTextView.setText("Network Details: " + wifiInfo.getSSID());
-                int signalStrength = WifiManager.calculateSignalLevel(wifiInfo.getRssi(), 5);
-                signalStrengthTextView.setText("Signal Strength: " + signalStrength + "/5");
-                otherInfoTextView.setText("Other Info: Link Speed - " + wifiInfo.getLinkSpeed() + "Mbps\n"
-                        + "IP Address - " + intToIp(wifiInfo.getIpAddress()) + "\n"
-                        + "MAC Address - " + wifiInfo.getMacAddress());
-                showBanner("Connected to Wi-Fi", android.R.color.holo_green_dark);
-            } else if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
+            if (activeNetwork.getType() == ConnectivityManager.TYPE_MOBILE) {
                 networkStatusTextView.setText("Connected to: Mobile Network");
-                if (isMobileDataEnabled()) {
-                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-                        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-                        networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
-                    } else {
-                        networkDetailsTextView.setText("Network Details: Permission required");
-                    }
-                    signalStrengthTextView.setText("Signal Strength: Unknown");
-                    otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()) + "\n"
-                            + "IP Address - " + getMobileIpAddress() + "\n"
-                            + "MAC Address - " + getMobileMacAddress());
-                    showBanner("Connected to Mobile Network", android.R.color.holo_green_dark);
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                    TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+                    networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
                 } else {
-                    networkDetailsTextView.setText("Network Details: Mobile data off");
-                    signalStrengthTextView.setText("Signal Strength: N/A");
-                    otherInfoTextView.setText("Other Info: N/A");
-                    showBanner("Mobile data is off", android.R.color.holo_red_dark);
+                    networkDetailsTextView.setText("Network Details: Permission required");
                 }
+                signalStrengthTextView.setText("Signal Strength: Unknown");
+                otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()));
+                showBanner("Connected to Mobile Network", android.R.color.holo_green_dark);
             }
         } else {
             networkStatusTextView.setText("Not connected to the internet");
@@ -153,33 +124,6 @@ public class MainActivity extends AppCompatActivity {
             signalStrengthTextView.setText("Signal Strength: N/A");
             otherInfoTextView.setText("Other Info: N/A");
             showBanner("Not connected to the internet", android.R.color.holo_red_dark);
-        }
-
-        if (wifiManager.isWifiEnabled()) {
-            otherInfoTextView.append("\nWi-Fi is ON");
-        } else {
-            otherInfoTextView.append("\nWi-Fi is OFF");
-        }
-
-        if (isMobileDataEnabled()) {
-            otherInfoTextView.append("\nMobile Data is ON");
-        } else {
-            otherInfoTextView.append("\nMobile Data is OFF");
-        }
-    }
-
-    private boolean isMobileDataEnabled() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-                return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR);
-            } else {
-                NetworkInfo info = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
-                return info != null && info.isConnected();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
         }
     }
 
@@ -205,22 +149,5 @@ public class MainActivity extends AppCompatActivity {
         bannerView.setBackgroundColor(ContextCompat.getColor(this, colorResId));
         bannerView.setVisibility(View.VISIBLE);
         networkStatusTextView.setText(message);
-    }
-
-    private String intToIp(int ipAddress) {
-        return ((ipAddress >> 24) & 0xFF) + "." +
-                ((ipAddress >> 16) & 0xFF) + "." +
-                ((ipAddress >> 8) & 0xFF) + "." +
-                (ipAddress & 0xFF);
-    }
-
-    private String getMobileIpAddress() {
-        // You need a method to get the mobile IP address
-        return "N/A";
-    }
-
-    private String getMobileMacAddress() {
-        // You need a method to get the mobile MAC address
-        return "N/A";
     }
 }
