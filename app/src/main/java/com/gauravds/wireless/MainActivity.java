@@ -13,9 +13,12 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.telephony.PhoneStateListener;
+import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
 import android.view.View;
 import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -29,6 +32,8 @@ public class MainActivity extends AppCompatActivity {
     private WifiManager wifiManager;
     private BroadcastReceiver networkReceiver;
     private View bannerView;
+    private TelephonyManager telephonyManager;
+    private PhoneStateListener phoneStateListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +49,8 @@ public class MainActivity extends AppCompatActivity {
         connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
+        telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+
         checkPermissions();
     }
 
@@ -51,6 +58,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         unregisterReceiver(networkReceiver);
+        if (phoneStateListener != null) {
+            telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_NONE);
+        }
     }
 
     private void checkPermissions() {
@@ -75,6 +85,7 @@ public class MainActivity extends AppCompatActivity {
             ActivityCompat.requestPermissions(this, permissions, PERMISSIONS_REQUEST_CODE);
         } else {
             registerNetworkReceiver();
+            registerPhoneStateListener();
         }
     }
 
@@ -92,6 +103,7 @@ public class MainActivity extends AppCompatActivity {
 
             if (allPermissionsGranted) {
                 registerNetworkReceiver();
+                registerPhoneStateListener();
             } else {
                 networkStatusTextView.setText("Permission denied");
             }
@@ -113,6 +125,17 @@ public class MainActivity extends AppCompatActivity {
         updateNetworkInfo();
     }
 
+    private void registerPhoneStateListener() {
+        phoneStateListener = new PhoneStateListener() {
+            @Override
+            public void onSignalStrengthsChanged(SignalStrength signalStrength) {
+                super.onSignalStrengthsChanged(signalStrength);
+                updateSignalStrength(signalStrength);
+            }
+        };
+        telephonyManager.listen(phoneStateListener, PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+    }
+
     private void updateNetworkInfo() {
         NetworkInfo activeNetwork = connectivityManager.getActiveNetworkInfo();
         if (activeNetwork != null && activeNetwork.isConnected()) {
@@ -130,12 +153,11 @@ public class MainActivity extends AppCompatActivity {
                 networkStatusTextView.setText("Connected to: Mobile Network");
                 if (isMobileDataEnabled()) {
                     if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
-                        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
                         networkDetailsTextView.setText("Network Details: " + telephonyManager.getNetworkOperatorName());
                     } else {
                         networkDetailsTextView.setText("Network Details: Permission required");
                     }
-                    signalStrengthTextView.setText("Signal Strength: Unknown");
+                    signalStrengthTextView.setText("Signal Strength: " + getMobileSignalStrength());
                     otherInfoTextView.setText("Other Info: Mobile Network Type - " + getNetworkTypeString(activeNetwork.getSubtype()) + "\n"
                             + "IP Address - " + getMobileIpAddress() + "\n"
                             + "MAC Address - " + getMobileMacAddress());
@@ -166,6 +188,40 @@ public class MainActivity extends AppCompatActivity {
         } else {
             otherInfoTextView.append("\nMobile Data is OFF");
         }
+    }
+
+    private void updateSignalStrength(SignalStrength signalStrength) {
+        if (signalStrength != null) {
+            int level;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                level = signalStrength.getLevel();
+            } else {
+                level = signalStrength.getGsmSignalStrength();
+            }
+            signalStrengthTextView.setText("Signal Strength: " + level + "/4"); // Adjust the scale as needed
+        } else {
+            signalStrengthTextView.setText("Signal Strength: N/A");
+        }
+    }
+
+    private String getMobileSignalStrength() {
+        try {
+            if (telephonyManager != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    // For Android Q and above
+                    SignalStrength signalStrength = telephonyManager.getSignalStrength();
+                    if (signalStrength != null) {
+                        return String.valueOf(signalStrength.getLevel());
+                    }
+                } else {
+                    // Deprecated method, for older versions
+                    return String.valueOf(telephonyManager.getNetworkType());
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "N/A";
     }
 
     private boolean isMobileDataEnabled() {
